@@ -255,52 +255,29 @@ describe('BNS', () => {
   });
 });
 
-test('can_stack', async () => {
-  fetchMock.resetMocks();
-  fetchMock.mockOnce(
-    '{"contract_id":"ST000000000000000000002AMW42H.pox","pox_activation_threshold_ustx":827381723155441,"first_burnchain_block_height":2000000,"prepare_phase_block_length":50,"reward_phase_block_length":1000,"reward_slots":2000,"rejection_fraction":12,"total_liquid_supply_ustx":41369086157772050,"current_cycle":{"id":269,"min_threshold_ustx":5180000000000,"stacked_ustx":0,"is_pox_active":false},"next_cycle":{"id":270,"min_threshold_ustx":5180000000000,"min_increment_ustx":5171135769721,"stacked_ustx":5600000000000,"prepare_phase_start_block_height":2283450,"blocks_until_prepare_phase":146,"reward_phase_start_block_height":2283500,"blocks_until_reward_phase":196,"ustx_until_pox_rejection":4964290338932640},"min_amount_ustx":5180000000000,"prepare_cycle_length":50,"reward_cycle_id":269,"reward_cycle_length":1050,"rejection_votes_left_required":4964290338932640,"next_reward_cycle_in":196}'
-  );
-  fetchMock.mockOnce(
-    '{ "balance": "0x0000000000000000000005a74678d000", "locked": "0x00000000000000000000000000000000", "unlock_height": 0, "nonce": 0 }'
-  );
-  fetchMock.mockOnce(
-    '{"contract_id":"ST000000000000000000002AMW42H.pox","pox_activation_threshold_ustx":827381723155441,"first_burnchain_block_height":2000000,"prepare_phase_block_length":50,"reward_phase_block_length":1000,"reward_slots":2000,"rejection_fraction":12,"total_liquid_supply_ustx":41369086157772050,"current_cycle":{"id":269,"min_threshold_ustx":5180000000000,"stacked_ustx":0,"is_pox_active":false},"next_cycle":{"id":270,"min_threshold_ustx":5180000000000,"min_increment_ustx":5171135769721,"stacked_ustx":5600000000000,"prepare_phase_start_block_height":2283450,"blocks_until_prepare_phase":146,"reward_phase_start_block_height":2283500,"blocks_until_reward_phase":196,"ustx_until_pox_rejection":4964290338932640},"min_amount_ustx":5180000000000,"prepare_cycle_length":50,"reward_cycle_id":269,"reward_cycle_length":1050,"rejection_votes_left_required":4964290338932640,"next_reward_cycle_in":196}'
-  );
-  fetchMock.mockOnce('{"okay":true,"result":"0x0703"}');
-  fetchMock.mockOnce('{"eligible":true}');
-
-  const params =
-    '6216000000000 10 mqkccNX5h7Xy1YUku3X2fCFCC54x6HEiHk ST3VJVZ265JZMG1N61YE3EQ7GNTQHF6PXP0E7YACV';
-  const response = await canStack(testnetNetwork, params.split(' '));
-  expect(response.eligible).toBe(true);
-
-  expect(fetchMock.mock.calls).toHaveLength(4);
-  expect(fetchMock.mock.calls[3][0]).toContain('/pox/can-stack-stx');
-  expect(fetchMock.mock.calls[3][1]?.body).toBe(
-    '{"sender":"ST3VJVZ265JZMG1N61YE3EQ7GNTQHF6PXP0E7YACV","arguments":["0x0c000000020968617368627974657302000000147046a658021260485e1ba9eb6c3e4c26b60953290776657273696f6e020000000100","0x010000000000000000000005a74678d000","0x010000000000000000000000000000010d","0x010000000000000000000000000000000a"]}'
-  );
-});
-
 describe('Subdomain Migration', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks();
+  });
+
   // Consider test scenarios for subdomain migration
-  const subDomainTestData: Array<
-    [string, string, string, { txid: string; error: string | null; status: number }]
-  > = [
+  const subDomainTestData: [
+    string,
+    string,
+    string,
+    { txid: string; error: string | null; status: number } | string
+  ][] = [
     [
       'sound idle panel often situate develop unit text design antenna vendor screen opinion balcony share trigger accuse scatter visa uniform brass update opinion media',
       'test1.id.stx', // Subdomain to be migrated: success
-      'ST3WTH31TWVYDD1YGYKSZK8XFJ3Z1Z5JMGGRF4558', // Owner will match
+      'ST30RZ44NTH2D95M1HSWVMM8VVHSAFY71VCERJQM5', // Owner will match
       { txid: 'success', error: null, status: 200 }, // expected output, successfully migrated
     ],
     [
       'sound idle panel often situate develop unit text design antenna vendor screen opinion balcony share trigger accuse scatter visa uniform brass update opinion media',
       'test2.id.stx', // Subdomain to be migrated
       'ST3Q2T3380WE1K5PW72R6R76Q8HRPEK8HR02W6V1M', // Owner mismatch
-      {
-        txid: 'error',
-        error: 'Only owner of subdoamin can invoke the transfer operation',
-        status: 400,
-      }, // expected output, not migrated due to owner mismatch
+      'No subdomains selected. Canceling...', // expected output, not migrated due to owner mismatch
     ],
   ];
 
@@ -318,10 +295,11 @@ describe('Subdomain Migration', () => {
 
       fetchMock
         .once(mockGaiaHubInfo)
-        .once(JSON.stringify({ names: [subdomain] })) // resolve username of this account
-        .once(JSON.stringify('ok')) // updateWalletConfig
-        .once(JSON.stringify({ names: [subdomain] })) // to be migrated
-        .once(JSON.stringify({ names: ['test3.id.stx', 'test4.id.stx'] })) // already found subdomain at wallet key address
+        .once('not found', { status: 404 }) // wallet-config
+        .once('not found', { status: 404 }) // wallet-config
+        .once(JSON.stringify({ names: [] })) // don't find names on compressed data-key address
+        .once(JSON.stringify({ names: [subdomain] })) // find names on compressed data-key address
+        .once(JSON.stringify({ names: ['test3.id.stx', 'test4.id.stx'] })) // find subdomains at wallet-key address (migration target)
         .once(
           JSON.stringify({
             address: owner,
@@ -333,20 +311,18 @@ describe('Subdomain Migration', () => {
               '$ORIGIN test1.id.stx\n$TTL 3600\n_http._tcp\tIN\tURI\t10\t1\t"https://gaia.blockstack.org/hub/12imq5x4FdqMJVdLAsaRnWTe662ddyWJRT/profile.json"\n\n',
             zonefile_hash: '4f1f4fdd335e66b9798e0b86cf337d7a',
           })
-        )
-        .once(JSON.stringify(expected), { status: expected.status });
-      const promptName = subdomain.replaceAll('.', '_');
-      const contractInputArg: { [key: string]: boolean } = {};
-      // Mock the user input as yes to migrate the subdomain
-      contractInputArg[promptName] = true;
+        );
+      if (typeof expected !== 'string') {
+        fetchMock.once(JSON.stringify(expected), { status: expected.status });
+      }
 
+      // Mock the user input as yes to migrate the subdomain
       // @ts-ignore
-      inquirer.prompt = jest.fn().mockResolvedValue(contractInputArg);
+      inquirer.prompt = jest.fn().mockResolvedValue({ [subdomain.replaceAll('.', '_')]: true });
 
       const output = await migrateSubdomains(testnetNetwork, args);
 
       expect(JSON.parse(output)).toEqual(expected);
-      fetchMock.resetMocks();
     }
   );
 
@@ -383,4 +359,30 @@ describe('Subdomain Migration', () => {
 
     expect(isValid).toEqual(true);
   });
+});
+
+test('can_stack', async () => {
+  fetchMock.resetMocks();
+  fetchMock.mockOnce(
+    '{"contract_id":"ST000000000000000000002AMW42H.pox","pox_activation_threshold_ustx":827381723155441,"first_burnchain_block_height":2000000,"prepare_phase_block_length":50,"reward_phase_block_length":1000,"reward_slots":2000,"rejection_fraction":12,"total_liquid_supply_ustx":41369086157772050,"current_cycle":{"id":269,"min_threshold_ustx":5180000000000,"stacked_ustx":0,"is_pox_active":false},"next_cycle":{"id":270,"min_threshold_ustx":5180000000000,"min_increment_ustx":5171135769721,"stacked_ustx":5600000000000,"prepare_phase_start_block_height":2283450,"blocks_until_prepare_phase":146,"reward_phase_start_block_height":2283500,"blocks_until_reward_phase":196,"ustx_until_pox_rejection":4964290338932640},"min_amount_ustx":5180000000000,"prepare_cycle_length":50,"reward_cycle_id":269,"reward_cycle_length":1050,"rejection_votes_left_required":4964290338932640,"next_reward_cycle_in":196}'
+  );
+  fetchMock.mockOnce(
+    '{ "balance": "0x0000000000000000000005a74678d000", "locked": "0x00000000000000000000000000000000", "unlock_height": 0, "nonce": 0 }'
+  );
+  fetchMock.mockOnce(
+    '{"contract_id":"ST000000000000000000002AMW42H.pox","pox_activation_threshold_ustx":827381723155441,"first_burnchain_block_height":2000000,"prepare_phase_block_length":50,"reward_phase_block_length":1000,"reward_slots":2000,"rejection_fraction":12,"total_liquid_supply_ustx":41369086157772050,"current_cycle":{"id":269,"min_threshold_ustx":5180000000000,"stacked_ustx":0,"is_pox_active":false},"next_cycle":{"id":270,"min_threshold_ustx":5180000000000,"min_increment_ustx":5171135769721,"stacked_ustx":5600000000000,"prepare_phase_start_block_height":2283450,"blocks_until_prepare_phase":146,"reward_phase_start_block_height":2283500,"blocks_until_reward_phase":196,"ustx_until_pox_rejection":4964290338932640},"min_amount_ustx":5180000000000,"prepare_cycle_length":50,"reward_cycle_id":269,"reward_cycle_length":1050,"rejection_votes_left_required":4964290338932640,"next_reward_cycle_in":196}'
+  );
+  fetchMock.mockOnce('{"okay":true,"result":"0x0703"}');
+  fetchMock.mockOnce('{"eligible":true}');
+
+  const params =
+    '6216000000000 10 mqkccNX5h7Xy1YUku3X2fCFCC54x6HEiHk ST3VJVZ265JZMG1N61YE3EQ7GNTQHF6PXP0E7YACV';
+  const response = await canStack(testnetNetwork, params.split(' '));
+  expect(response.eligible).toBe(true);
+
+  expect(fetchMock.mock.calls).toHaveLength(4);
+  expect(fetchMock.mock.calls[3][0]).toContain('/pox/can-stack-stx');
+  expect(fetchMock.mock.calls[3][1]?.body).toBe(
+    '{"sender":"ST3VJVZ265JZMG1N61YE3EQ7GNTQHF6PXP0E7YACV","arguments":["0x0c000000020968617368627974657302000000147046a658021260485e1ba9eb6c3e4c26b60953290776657273696f6e020000000100","0x010000000000000000000005a74678d000","0x010000000000000000000000000000010d","0x010000000000000000000000000000000a"]}'
+  );
 });

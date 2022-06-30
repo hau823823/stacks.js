@@ -1389,7 +1389,7 @@ export const CLI_ARGS = {
           realtype: '24_words_or_ciphertext',
         },
         {
-          name: 'registrar',
+          name: 'registrar_url',
           type: 'string',
           realtype: 'url',
         },
@@ -1408,7 +1408,7 @@ export const CLI_ARGS = {
         '\n' +
         'Example\n' +
         '\n' +
-        '    $ stx migrate_subdomains "toast canal educate tissue express melody produce later gospel victory meadow outdoor hollow catch liberty annual gasp hat hello april equip thank neck cruise" https://registrar.stacks.co/transfer \n' +
+        '    $ stx migrate_subdomains "toast canal educate tissue express melody produce later gospel victory meadow outdoor hollow catch liberty annual gasp hat hello april equip thank neck cruise" https://registrar.stacks.co\n' +
         '\n',
       group: 'Blockstack ID Management',
     },

@@ -351,9 +351,8 @@ type AnyJson = string | number | boolean | null | { [property: string]: AnyJson 
 export function JSONStringify(obj: AnyJson, stderr: boolean = false): string {
   if ((!stderr && process.stdout.isTTY) || (stderr && process.stderr.isTTY)) {
     return JSON.stringify(obj, null, 2);
-  } else {
-    return JSON.stringify(obj);
   }
+  return JSON.stringify(obj);
 }
 
 /*
